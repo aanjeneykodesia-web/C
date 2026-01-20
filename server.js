@@ -8,18 +8,29 @@ const app = express();
 /* ===============================
    MIDDLEWARE
 ================================ */
-app.use(cors()); // VERY IMPORTANT for Netlify
+app.use(cors());
 app.use(express.json());
+
+/* ===============================
+   CONFIG
+================================ */
+const PORT = process.env.PORT || 3000;
+
+// 🔐 FIXED ADMIN (ONLY THIS NUMBER)
+const ADMIN_MOBILE = "9999999999";
+
+// 📄 CSV FILE PATH
+const CSV_PATH = path.join(__dirname, "users.csv");
 
 /* ===============================
    ROOT CHECK (Railway Test)
 ================================ */
 app.get("/", (req, res) => {
-  res.send("UPI Backend Running");
+  res.send("Backend running");
 });
 
 /* ===============================
-   LOGIN API
+   LOGIN API (MOBILE ONLY)
 ================================ */
 app.post("/login", (req, res) => {
   const { mobile } = req.body;
@@ -27,60 +38,67 @@ app.post("/login", (req, res) => {
   if (!mobile) {
     return res.status(400).json({
       success: false,
-      message: "Mobile number required",
+      message: "Mobile number required"
     });
   }
 
-  /* ===== ADMIN FIXED LOGIN ===== */
-  if (mobile === "8888888888") {
+  const cleanMobile = mobile.trim();
+
+  /* ===== ADMIN CHECK (STRICT) ===== */
+  if (cleanMobile === ADMIN_MOBILE) {
     return res.json({
       success: true,
-      role: "admin",
+      role: "admin"
     });
   }
 
   /* ===== CSV USER CHECK ===== */
   try {
-    const csvPath = path.join(__dirname, "users.csv");
-
-    if (!fs.existsSync(csvPath)) {
+    if (!fs.existsSync(CSV_PATH)) {
       return res.status(500).json({
         success: false,
-        message: "CSV file not found",
+        message: "users.csv not found on server"
       });
     }
 
-    const csvData = fs.readFileSync(csvPath, "utf8");
+    const csvData = fs.readFileSync(CSV_PATH, "utf8");
     const rows = csvData.split("\n");
 
-    for (let row of rows) {
+    for (let i = 1; i < rows.length; i++) { // skip header
+      const row = rows[i].trim();
+      if (!row) continue;
+
       const cols = row.split(",");
 
-      if (cols[0] && cols[0].trim() === mobile.trim()) {
+      const csvMobile = cols[0]?.trim();
+      const csvRole = cols[1]?.trim().toLowerCase();
+
+      if (csvMobile === cleanMobile) {
         return res.json({
           success: true,
-          role: cols[1] ? cols[1].trim() : "user",
+          role: csvRole
         });
       }
     }
 
+    // ❌ Not admin and not in CSV
     return res.status(401).json({
       success: false,
-      message: "Unauthorized user",
+      message: "Unauthorized user"
     });
+
   } catch (err) {
+    console.error("LOGIN ERROR:", err);
     return res.status(500).json({
       success: false,
-      message: "Server error",
+      message: "Server error"
     });
   }
 });
 
 /* ===============================
-   SERVER START (Railway Safe)
+   START SERVER (Railway SAFE)
 ================================ */
-const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
