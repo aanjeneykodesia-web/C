@@ -1,4 +1,4 @@
-const express = require("express");
+    const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
@@ -44,7 +44,7 @@ app.post("/login", (req, res) => {
 
   const cleanMobile = mobile.trim();
 
-  /* ===== ADMIN CHECK (STRICT) ===== */
+  // ===== ADMIN CHECK =====
   if (cleanMobile === ADMIN_MOBILE) {
     return res.json({
       success: true,
@@ -52,7 +52,7 @@ app.post("/login", (req, res) => {
     });
   }
 
-  /* ===== CSV USER CHECK ===== */
+  // ===== CSV USER CHECK =====
   try {
     if (!fs.existsSync(CSV_PATH)) {
       return res.status(500).json({
@@ -64,7 +64,7 @@ app.post("/login", (req, res) => {
     const csvData = fs.readFileSync(CSV_PATH, "utf8");
     const rows = csvData.split("\n");
 
-    for (let i = 1; i < rows.length; i++) { // skip header
+    for (let i = 1; i < rows.length; i++) {
       const row = rows[i].trim();
       if (!row) continue;
 
@@ -81,7 +81,6 @@ app.post("/login", (req, res) => {
       }
     }
 
-    // ❌ Not admin and not in CSV
     return res.status(401).json({
       success: false,
       message: "Unauthorized user"
@@ -92,6 +91,46 @@ app.post("/login", (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error"
+    });
+  }
+});
+
+/* ===============================
+   ✅ ADMIN USERS API (FIX)
+================================ */
+app.get("/admin/users", (req, res) => {
+  try {
+    if (!fs.existsSync(CSV_PATH)) {
+      return res.json({ success: true, users: [] });
+    }
+
+    const csvData = fs.readFileSync(CSV_PATH, "utf8");
+    const rows = csvData.split("\n");
+
+    const users = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i].trim();
+      if (!row) continue;
+
+      const cols = row.split(",");
+
+      users.push({
+        mobile: cols[0]?.trim(),
+        role: cols[1]?.trim()
+      });
+    }
+
+    res.json({
+      success: true,
+      users
+    });
+
+  } catch (err) {
+    console.error("ADMIN USERS ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to load users"
     });
   }
 });
