@@ -16,22 +16,21 @@ app.use(express.json());
 ================================ */
 const PORT = process.env.PORT || 3000;
 
-// 🔐 FIXED ADMIN MOBILE
+// 🔐 FIXED ADMIN
 const ADMIN_MOBILE = "9999999999";
 
-// 📄 FILE PATHS
-const USERS_CSV = path.join(__dirname, "users.csv");
-const ITEMS_JSON = path.join(__dirname, "shopkeeper_items.json");
+// 📄 CSV FILE PATH
+const CSV_PATH = path.join(__dirname, "users.csv");
 
 /* ===============================
-   ROOT
+   ROOT CHECK
 ================================ */
 app.get("/", (req, res) => {
-  res.send("Backend running successfully");
+  res.send("Backend running");
 });
 
 /* ===============================
-   LOGIN (MOBILE ONLY)
+   LOGIN API
 ================================ */
 app.post("/login", (req, res) => {
   const { mobile } = req.body;
@@ -45,110 +44,132 @@ app.post("/login", (req, res) => {
 
   const cleanMobile = mobile.trim();
 
-  // ✅ ADMIN
+  // ADMIN
   if (cleanMobile === ADMIN_MOBILE) {
-    return res.json({
-      success: true,
-      role: "admin"
-    });
+    return res.json({ success: true, role: "admin" });
   }
 
-  // ✅ CSV USER
+  // CSV USERS
   try {
-    if (!fs.existsSync(USERS_CSV)) {
+    if (!fs.existsSync(CSV_PATH)) {
       return res.status(500).json({
         success: false,
         message: "users.csv not found"
       });
     }
 
-    const rows = fs.readFileSync(USERS_CSV, "utf8").split("\n");
+    const rows = fs.readFileSync(CSV_PATH, "utf8").split("\n");
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i].trim();
       if (!row) continue;
 
-      const [csvMobile, csvRole] = row.split(",");
+      const [mobile, role] = row.split(",");
 
-      if (csvMobile?.trim() === cleanMobile) {
+      if (mobile.trim() === cleanMobile) {
         return res.json({
           success: true,
-          role: csvRole.trim()
+          role: role.trim()
         });
       }
     }
 
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
-      message: "Unauthorized user"
+      message: "Unauthorized"
     });
 
   } catch (err) {
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Server error"
     });
   }
 });
 
-/* =====================================================
-   ADMIN – SHOPKEEPER ITEMS (ADMIN ONLY)
-===================================================== */
-
-// 📥 GET ALL ITEMS
-app.get("/admin/shopkeeper/items", (req, res) => {
+/* ===============================
+   ✅ ADMIN: GET USERS
+================================ */
+app.get("/admin/users", (req, res) => {
   try {
-    if (!fs.existsSync(ITEMS_JSON)) {
-      fs.writeFileSync(ITEMS_JSON, JSON.stringify([], null, 2));
+    if (!fs.existsSync(CSV_PATH)) {
+      return res.json({ success: true, users: [] });
     }
 
-    const items = JSON.parse(fs.readFileSync(ITEMS_JSON, "utf8"));
+    const rows = fs.readFileSync(CSV_PATH, "utf8").split("\n");
+    const users = [];
 
-    res.json({
-      success: true,
-      items
-    });
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i].trim();
+      if (!row) continue;
+
+      const [mobile, role] = row.split(",");
+
+      users.push({
+        mobile: mobile.trim(),
+        role: role.trim()
+      });
+    }
+
+    res.json({ success: true, users });
 
   } catch (err) {
     res.status(500).json({
       success: false,
-      message: "Failed to load items"
+      message: "Failed to load users"
     });
   }
 });
 
-// ✏️ UPDATE ITEM
-app.put("/admin/shopkeeper/items/:id", (req, res) => {
-  const { id } = req.params;
-  const { name, price } = req.body;
+/* ===============================
+   ✅ ADMIN: UPDATE USER ROLE
+================================ */
+app.post("/admin/update-user", (req, res) => {
+  const { adminMobile, mobile, newRole } = req.body;
+
+  // ADMIN CHECK
+  if (adminMobile !== ADMIN_MOBILE) {
+    return res.status(403).json({
+      success: false,
+      message: "Admin access only"
+    });
+  }
 
   try {
-    if (!fs.existsSync(ITEMS_JSON)) {
-      return res.status(404).json({
+    if (!fs.existsSync(CSV_PATH)) {
+      return res.status(500).json({
         success: false,
-        message: "Items file missing"
+        message: "CSV not found"
       });
     }
 
-    const items = JSON.parse(fs.readFileSync(ITEMS_JSON, "utf8"));
+    const rows = fs.readFileSync(CSV_PATH, "utf8").split("\n");
+    let updated = false;
 
-    const index = items.findIndex(item => item.id === id);
+    for (let i = 1; i < rows.length; i++) {
+      if (!rows[i].trim()) continue;
 
-    if (index === -1) {
+      const [csvMobile] = rows[i].split(",");
+
+      if (csvMobile.trim() === mobile) {
+        rows[i] = `${mobile},${newRole}`;
+        updated = true;
+        break;
+      }
+    }
+
+    if (!updated) {
       return res.status(404).json({
         success: false,
-        message: "Item not found"
+        message: "User not found"
       });
     }
 
-    items[index].name = name;
-    items[index].price = price;
-
-    fs.writeFileSync(ITEMS_JSON, JSON.stringify(items, null, 2));
+    fs.writeFileSync(CSV_PATH, rows.join("\n"));
 
     res.json({
       success: true,
-      message: "Item updated"
+      message: "User updated"
     });
 
   } catch (err) {
