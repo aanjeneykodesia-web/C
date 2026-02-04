@@ -1,4 +1,4 @@
-    const express = require("express");
+const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
@@ -16,21 +16,22 @@ app.use(express.json());
 ================================ */
 const PORT = process.env.PORT || 3000;
 
-// 🔐 FIXED ADMIN (ONLY THIS NUMBER)
+// 🔐 FIXED ADMIN MOBILE
 const ADMIN_MOBILE = "9999999999";
 
-// 📄 CSV FILE PATH
-const CSV_PATH = path.join(__dirname, "users.csv");
+// 📄 FILE PATHS
+const USERS_CSV = path.join(__dirname, "users.csv");
+const ITEMS_JSON = path.join(__dirname, "shopkeeper_items.json");
 
 /* ===============================
-   ROOT CHECK (Railway Test)
+   ROOT
 ================================ */
 app.get("/", (req, res) => {
-  res.send("Backend running");
+  res.send("Backend running successfully");
 });
 
 /* ===============================
-   LOGIN API (MOBILE ONLY)
+   LOGIN (MOBILE ONLY)
 ================================ */
 app.post("/login", (req, res) => {
   const { mobile } = req.body;
@@ -44,7 +45,7 @@ app.post("/login", (req, res) => {
 
   const cleanMobile = mobile.trim();
 
-  // ===== ADMIN CHECK =====
+  // ✅ ADMIN
   if (cleanMobile === ADMIN_MOBILE) {
     return res.json({
       success: true,
@@ -52,31 +53,27 @@ app.post("/login", (req, res) => {
     });
   }
 
-  // ===== CSV USER CHECK =====
+  // ✅ CSV USER
   try {
-    if (!fs.existsSync(CSV_PATH)) {
+    if (!fs.existsSync(USERS_CSV)) {
       return res.status(500).json({
         success: false,
-        message: "users.csv not found on server"
+        message: "users.csv not found"
       });
     }
 
-    const csvData = fs.readFileSync(CSV_PATH, "utf8");
-    const rows = csvData.split("\n");
+    const rows = fs.readFileSync(USERS_CSV, "utf8").split("\n");
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i].trim();
       if (!row) continue;
 
-      const cols = row.split(",");
+      const [csvMobile, csvRole] = row.split(",");
 
-      const csvMobile = cols[0]?.trim();
-      const csvRole = cols[1]?.trim().toLowerCase();
-
-      if (csvMobile === cleanMobile) {
+      if (csvMobile?.trim() === cleanMobile) {
         return res.json({
           success: true,
-          role: csvRole
+          role: csvRole.trim()
         });
       }
     }
@@ -87,7 +84,6 @@ app.post("/login", (req, res) => {
     });
 
   } catch (err) {
-    console.error("LOGIN ERROR:", err);
     return res.status(500).json({
       success: false,
       message: "Server error"
@@ -95,48 +91,76 @@ app.post("/login", (req, res) => {
   }
 });
 
-/* ===============================
-   ✅ ADMIN USERS API (FIX)
-================================ */
-app.get("/admin/users", (req, res) => {
+/* =====================================================
+   ADMIN – SHOPKEEPER ITEMS (ADMIN ONLY)
+===================================================== */
+
+// 📥 GET ALL ITEMS
+app.get("/admin/shopkeeper/items", (req, res) => {
   try {
-    if (!fs.existsSync(CSV_PATH)) {
-      return res.json({ success: true, users: [] });
+    if (!fs.existsSync(ITEMS_JSON)) {
+      fs.writeFileSync(ITEMS_JSON, JSON.stringify([], null, 2));
     }
 
-    const csvData = fs.readFileSync(CSV_PATH, "utf8");
-    const rows = csvData.split("\n");
-
-    const users = [];
-
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i].trim();
-      if (!row) continue;
-
-      const cols = row.split(",");
-
-      users.push({
-        mobile: cols[0]?.trim(),
-        role: cols[1]?.trim()
-      });
-    }
+    const items = JSON.parse(fs.readFileSync(ITEMS_JSON, "utf8"));
 
     res.json({
       success: true,
-      users
+      items
     });
 
   } catch (err) {
-    console.error("ADMIN USERS ERROR:", err);
     res.status(500).json({
       success: false,
-      message: "Failed to load users"
+      message: "Failed to load items"
+    });
+  }
+});
+
+// ✏️ UPDATE ITEM
+app.put("/admin/shopkeeper/items/:id", (req, res) => {
+  const { id } = req.params;
+  const { name, price } = req.body;
+
+  try {
+    if (!fs.existsSync(ITEMS_JSON)) {
+      return res.status(404).json({
+        success: false,
+        message: "Items file missing"
+      });
+    }
+
+    const items = JSON.parse(fs.readFileSync(ITEMS_JSON, "utf8"));
+
+    const index = items.findIndex(item => item.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Item not found"
+      });
+    }
+
+    items[index].name = name;
+    items[index].price = price;
+
+    fs.writeFileSync(ITEMS_JSON, JSON.stringify(items, null, 2));
+
+    res.json({
+      success: true,
+      message: "Item updated"
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Update failed"
     });
   }
 });
 
 /* ===============================
-   START SERVER (Railway SAFE)
+   START SERVER
 ================================ */
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
