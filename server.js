@@ -10,8 +10,12 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const ADMIN_MOBILE = "9999999999";
 
-const PRODUCTS_FILE = path.join(__dirname, "products.json");
-
+// 📱 USERS MAP (RELIABLE)
+const USERS = {
+  "8888888888": "shopkeeper",
+  "7777777777": "manufacturer",
+  "6666666666": "transport"
+};
 /* ---------------- ROOT ---------------- */
 app.get("/", (req, res) => {
   res.send("Backend running");
