@@ -24,10 +24,37 @@ app.get("/", (req, res) => {
 /* ---------------- LOGIN ---------------- */
 app.post("/login", (req, res) => {
   const { mobile } = req.body;
-  if (mobile === ADMIN_MOBILE) {
-    return res.json({ success: true, role: "admin" });
+
+  if (!mobile) {
+    return res.status(400).json({
+      success: false,
+      message: "Mobile number required"
+    });
   }
-  return res.status(401).json({ success: false });
+
+  const cleanMobile = mobile.trim();
+
+  // ✅ ADMIN
+  if (cleanMobile === ADMIN_MOBILE) {
+    return res.json({
+      success: true,
+      role: "admin"
+    });
+  }
+
+  // ✅ USERS (THIS WAS MISSING)
+  if (USERS[cleanMobile]) {
+    return res.json({
+      success: true,
+      role: USERS[cleanMobile]
+    });
+  }
+
+  // ❌ UNAUTHORIZED
+  return res.status(401).json({
+    success: false,
+    message: "Unauthorized user"
+  });
 });
 
 /* ---------------- UTIL ---------------- */
