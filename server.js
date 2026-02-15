@@ -17,12 +17,24 @@ app.get("/", (req, res) => {
   res.send("Backend running");
 });
 
+/* ---------------- SIMPLE ADMIN CHECK ---------------- */
+function checkAdmin(req, res, next) {
+  const mobile = req.headers["admin-mobile"];
+  if (mobile === ADMIN_MOBILE) {
+    next();
+  } else {
+    res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+}
+
 /* ---------------- LOGIN ---------------- */
 app.post("/login", (req, res) => {
   const { mobile } = req.body;
+
   if (mobile === ADMIN_MOBILE) {
     return res.json({ success: true, role: "admin" });
   }
+
   return res.status(401).json({ success: false });
 });
 
@@ -37,12 +49,20 @@ function writeProducts(data) {
 }
 
 /* ---------------- PRODUCTS ---------------- */
-app.get("/admin/products", (req, res) => {
+
+/* Get All Products */
+app.get("/admin/products", checkAdmin, (req, res) => {
   res.json({ success: true, products: readProducts() });
 });
 
-app.post("/admin/add-product", (req, res) => {
+/* Add Product */
+app.post("/admin/add-product", checkAdmin, (req, res) => {
   const { id, name, price, qty } = req.body;
+
+  if (!id || !name) {
+    return res.status(400).json({ success: false, message: "Missing fields" });
+  }
+
   const products = readProducts();
 
   products.push({ id, name, price, qty });
@@ -51,26 +71,34 @@ app.post("/admin/add-product", (req, res) => {
   res.json({ success: true });
 });
 
-app.post("/admin/update-product", (req, res) => {
+/* Update Product */
+app.post("/admin/update-product", checkAdmin, (req, res) => {
   const { id, price, qty } = req.body;
   const products = readProducts();
 
-  products.forEach(p => {
-    if (p.id === id) {
-      p.price = price;
-      p.qty = qty;
-    }
-  });
+  const product = products.find(p => p.id === id);
+
+  if (!product) {
+    return res.status(404).json({ success: false, message: "Product not found" });
+  }
+
+  product.price = price;
+  product.qty = qty;
 
   writeProducts(products);
+
   res.json({ success: true });
 });
 
-app.post("/admin/delete-product", (req, res) => {
+/* Delete Product */
+app.post("/admin/delete-product", checkAdmin, (req, res) => {
   const { id } = req.body;
-  const products = readProducts().filter(p => p.id !== id);
+  const products = readProducts();
 
-  writeProducts(products);
+  const updated = products.filter(p => p.id !== id);
+
+  writeProducts(updated);
+
   res.json({ success: true });
 });
 
